@@ -1,0 +1,20 @@
+meta {
+  name: Generate
+  type: http
+  seq: 4
+}
+
+post {
+  url: http://localhost:8090/generate
+  body: json
+  auth: none
+}
+
+body:json {
+  {
+    "Style": "Test",
+    "StyleIsURL": false,
+    "Scene": "test",
+    "SceneIsURL": false
+  }
+}

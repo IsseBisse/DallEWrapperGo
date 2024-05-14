@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "Dall-E Wrapper (GoReact)",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}
