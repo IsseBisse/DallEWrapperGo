@@ -14,9 +14,6 @@ import (
 	"github.com/nfnt/resize"
 )
 
-// TODO: Add a created column for the creation date
-// TODO: Add column for low res image thumbnail
-
 func insertImageFromUrl(url string, prompt string) string {
 	response, e := http.Get(url)
 	if e != nil {
@@ -74,7 +71,6 @@ func selectImageById(id string, isHighResolution bool) *Image {
 func selectImageIds() []string {
 	query := "SELECT id FROM images ORDER BY timestamp DESC"
 
-	// TODO: Look into this error-handling, it seems a bit excessive
 	rows, err := db.Query(query)
 	if err != nil {
 		log.Fatal(err)

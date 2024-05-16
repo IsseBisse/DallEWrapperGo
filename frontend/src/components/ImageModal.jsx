@@ -16,7 +16,6 @@ const style = {
     p: 4,
   };
 
-// TODO: fetch high res image when opened
 
 function ImageModal({ open, setOpen, id, lowResImage, description, backendURL }) {
     

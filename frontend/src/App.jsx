@@ -12,7 +12,6 @@ import GenerateModal from './components/GenerateModal';
 const backendURL = "http://localhost:8090/"
 
 function App() {
-    // TODO: Add support for low res image thumbnails
     const [imageIds, setImageIds] = useState([])
     useEffect(() => {
         fetch(backendURL + "images")
