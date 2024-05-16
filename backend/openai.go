@@ -78,7 +78,7 @@ func (content VisionContent) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func PromptFromURL(url string, isStyle bool) string {
+func PromptFromURL(url string, isStyle bool) (string, error) {
 	var instruction string
 	if isStyle {
 		instruction = "Create a prompt for Dall-E 3 to recreate the style of this image. Your answer should only contain information about the style of the image (i.e. tone, color scale, technique), NOT the contents"
@@ -98,7 +98,7 @@ func PromptFromURL(url string, isStyle bool) string {
 	client := http.Client{Timeout: 100 * time.Second}
 	response, err := client.Do(req)
 	if err != nil {
-		log.Printf("Something went wrong!")
+		return "", err
 	}
 	defer response.Body.Close()
 
@@ -109,10 +109,10 @@ func PromptFromURL(url string, isStyle bool) string {
 		log.Printf("Something went wrong!")
 	}
 
-	return chatResponse.Choices[0].Message.Content
+	return chatResponse.Choices[0].Message.Content, nil
 }
 
-func GenerateDallEImage(scene string, style string, size string) (string, string) {
+func GenerateDallEImage(scene string, style string, size string) (string, string, error) {
 	// TODO: Re-use parts of this that are identical to PromptFromURL()
 	prompt := scene + "\n\n" + style
 	requestBody := DallERequestBody{"dall-e-3", prompt, 1, size}
@@ -126,7 +126,7 @@ func GenerateDallEImage(scene string, style string, size string) (string, string
 	client := http.Client{Timeout: 100 * time.Second}
 	response, err := client.Do(req)
 	if err != nil {
-		log.Printf("Something went wrong!")
+		return "", "", err
 	}
 	defer response.Body.Close()
 
@@ -134,8 +134,8 @@ func GenerateDallEImage(scene string, style string, size string) (string, string
 	responseBody, _ := io.ReadAll(response.Body)
 	json.Unmarshal(responseBody, &dalleResponse)
 	if err != nil {
-		log.Printf("Something went wrong!")
+		return "", "", err
 	}
 
-	return dalleResponse.Data[0].URL, prompt
+	return dalleResponse.Data[0].URL, prompt, nil
 }
