@@ -13,13 +13,19 @@ import (
 	_ "github.com/lib/pq"
 )
 
-type ImageGenerationConfig struct {
+type ImageGenerationRequest struct {
 	Style      string `json:"style"`
 	StyleIsURL bool   `json:"styleIsUrl"`
 	Scene      string `json:"scene"`
 	SceneIsURL bool   `json:"sceneIsUrl"`
 	Size       string `json:"size"`
 	NumImages  int    `json:"numImages"`
+}
+
+func (req ImageGenerationRequest) validate() map[string]string {
+	var errors map[string]string
+
+	return errors
 }
 
 type Image struct {
@@ -31,53 +37,55 @@ type Image struct {
 
 var db *sql.DB
 
-func GenerateImageOptions(w http.ResponseWriter, req *http.Request) {
+func GenerateImageOptions(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "POST")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept")
 }
 
-func GenerateImage(w http.ResponseWriter, req *http.Request) {
-	var config ImageGenerationConfig
+func GenerateImage(w http.ResponseWriter, r *http.Request) {
+	var req ImageGenerationRequest
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	err := json.NewDecoder(req.Body).Decode(&config)
-	if err != nil {
-		http.Error(w, "Bad request!", http.StatusBadRequest)
-		return
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusUnprocessableEntity)
+	}
+
+	// ERROR: Add validation
+	if errors := req.validate(); len(errors) > 0 {
+		http.Error(w, "Bad Request", http.StatusBadRequest)
 	}
 
 	// TODO: Re-use this
 	var stylePrompt string
-	if config.StyleIsURL {
-		stylePrompt = PromptFromURL(config.Style, true)
+	if req.StyleIsURL {
+		stylePrompt = PromptFromURL(req.Style, true)
 	} else {
-		stylePrompt = config.Style
+		stylePrompt = req.Style
 	}
 
 	var scenePrompt string
-	if config.SceneIsURL {
-		scenePrompt = PromptFromURL(config.Scene, false)
+	if req.SceneIsURL {
+		scenePrompt = PromptFromURL(req.Scene, false)
 	} else {
-		scenePrompt = config.Scene
+		scenePrompt = req.Scene
 	}
 
 	var ids []string
-	for i := 0; i < config.NumImages; i++ {
-		imageUrl, prompt := GenerateDallEImage(scenePrompt, stylePrompt, config.Size)
+	for i := 0; i < req.NumImages; i++ {
+		imageUrl, prompt := GenerateDallEImage(scenePrompt, stylePrompt, req.Size)
 		id := insertImageFromUrl(imageUrl, prompt)
 		ids = append(ids, id)
 	}
 
-	err = json.NewEncoder(w).Encode(ids)
-	if err != nil {
-		http.Error(w, "Error encoding JSON", http.StatusInternalServerError)
+	if err := json.NewEncoder(w).Encode(ids); err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
 
-func GetImageIds(w http.ResponseWriter, req *http.Request) {
+func GetImageIds(w http.ResponseWriter, _ *http.Request) {
 	ids := selectImageIds()
 
 	w.Header().Set("Content-Type", "application/json")
@@ -85,21 +93,20 @@ func GetImageIds(w http.ResponseWriter, req *http.Request) {
 
 	err := json.NewEncoder(w).Encode(ids)
 	if err != nil {
-		http.Error(w, "Error encoding JSON", http.StatusInternalServerError)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
 	}
 }
 
-func GetImageById(w http.ResponseWriter, req *http.Request) {
-	id := req.PathValue("id")
-	req.ParseForm()
-	_, isHighResolution := req.Form["isHighResolution"]
+func GetImageById(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+	r.ParseForm()
+	_, isHighResolution := r.Form["isHighResolution"]
 	image := selectImageById(id, isHighResolution)
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	err := json.NewEncoder(w).Encode(image)
-	if err != nil {
+	if err := json.NewEncoder(w).Encode(image); err != nil {
 		http.Error(w, "Error encoding JSON", http.StatusInternalServerError)
 	}
 }
@@ -109,10 +116,10 @@ func HealthCheck(w http.ResponseWriter, _ *http.Request) {
 }
 
 func Logging(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
-		next.ServeHTTP(w, req)
-		fmt.Println(req.Method, req.URL.Path, time.Since(start))
+		next.ServeHTTP(w, r)
+		fmt.Println(r.Method, r.URL.Path, time.Since(start))
 	})
 }
 
@@ -123,8 +130,7 @@ func main() {
 	connStr := "postgresql://myuser:mypassword@db/mydb?sslmode=disable"
 	// Connect to database
 	var err error
-	db, err = sql.Open("postgres", connStr)
-	if err != nil {
+	if db, err = sql.Open("postgres", connStr); err != nil {
 		log.Fatal(err)
 	}
 
