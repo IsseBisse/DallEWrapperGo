@@ -5,16 +5,18 @@ meta {
 }
 
 post {
-  url: http://localhost:8090/generate
+  url: http://localhost:8090/images
   body: json
   auth: none
 }
 
 body:json {
   {
-    "Style": "Test",
+    "Style": "A painting",
     "StyleIsURL": false,
-    "Scene": "test",
-    "SceneIsURL": false
+    "Scene": "a giraffe",
+    "SceneIsURL": false,
+    "Size": "1024x1024",
+    "NumImages": 2
   }
 }

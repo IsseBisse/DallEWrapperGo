@@ -49,6 +49,27 @@ func GenerateImageOptions(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept")
 }
 
+type ImageGenerationResults struct {
+	Id    string
+	Error error
+}
+
+func generateImageTask(scenePrompt string, stylePrompt string, size string, res chan<- ImageGenerationResults) {
+	imageUrl, prompt, err := GenerateDallEImage(scenePrompt, stylePrompt, size)
+	if err != nil {
+		res <- ImageGenerationResults{"", err}
+		return
+	}
+
+	id, err := insertImageFromUrl(imageUrl, prompt)
+	if err != nil {
+		res <- ImageGenerationResults{"", err}
+		return
+	}
+
+	res <- ImageGenerationResults{id, nil}
+}
+
 func GenerateImage(w http.ResponseWriter, r *http.Request) {
 	var req ImageGenerationRequest
 
@@ -90,26 +111,21 @@ func GenerateImage(w http.ResponseWriter, r *http.Request) {
 		scenePrompt = req.Scene
 	}
 
-	var ids []string
+	chanRes := make(chan ImageGenerationResults, 1)
 	for i := 0; i < req.NumImages; i++ {
-		imageUrl, prompt, err := GenerateDallEImage(scenePrompt, stylePrompt, req.Size)
-		if err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-
-		id, err := insertImageFromUrl(imageUrl, prompt)
-		if err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-		ids = append(ids, id)
+		go generateImageTask(scenePrompt, stylePrompt, req.Size, chanRes)
 	}
+	res := <-chanRes
+	fmt.Println(res)
 
-	if err := json.NewEncoder(w).Encode(ids); err != nil {
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
+	// TODO: Test this, add error handling and return value
+
+	// http.Error(w, "Internal server error", http.StatusInternalServerError)
+
+	// if err := json.NewEncoder(w).Encode(ids); err != nil {
+	// 	http.Error(w, "Internal server error", http.StatusInternalServerError)
+	// 	return
+	// }
 }
 
 func GetImageIds(w http.ResponseWriter, _ *http.Request) {
