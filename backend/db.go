@@ -2,40 +2,37 @@ package main
 
 import (
 	"bytes"
-	"database/sql"
 	"image"
 	"image/png"
 	_ "image/png"
 	"io"
-	"log"
 	"net/http"
 
 	_ "github.com/lib/pq"
 	"github.com/nfnt/resize"
 )
 
-func insertImageFromUrl(url string, prompt string) string {
-	response, e := http.Get(url)
-	if e != nil {
-		log.Fatal(e)
+func insertImageFromUrl(url string, prompt string) (string, error) {
+	response, err := http.Get(url)
+	if err != nil {
+		return "", err
 	}
 	defer response.Body.Close()
 
 	imgData, err := io.ReadAll(response.Body)
 	if err != nil {
-		log.Printf("Something went wrong!")
+		return "", err
 	}
 
 	img, _, err := image.Decode(bytes.NewReader(imgData))
 	if err != nil {
-		log.Printf("Something went wrong!")
+		return "", err
 	}
 
 	imgLowRes := resize.Resize(256, 256, img, resize.Lanczos3)
 	imgLowResBuf := new(bytes.Buffer)
-	err = png.Encode(imgLowResBuf, imgLowRes)
-	if err != nil {
-		log.Printf("Something went wrong!")
+	if err := png.Encode(imgLowResBuf, imgLowRes); err != nil {
+		return "", err
 	}
 
 	var id string
@@ -43,13 +40,13 @@ func insertImageFromUrl(url string, prompt string) string {
 		"INSERT INTO images(prompt, url, image, imageLowRes) VALUES($1, $2, $3, $4) RETURNING id",
 		prompt, url, imgData, imgLowResBuf.Bytes(),
 	).Scan(&id); err != nil {
-		panic(err)
+		return "", err
 	}
 
-	return id
+	return id, nil
 }
 
-func selectImageById(id string, isHighResolution bool) *Image {
+func selectImageById(id string, isHighResolution bool) (*Image, error) {
 	image := &Image{}
 	var query string
 	if isHighResolution {
@@ -59,22 +56,18 @@ func selectImageById(id string, isHighResolution bool) *Image {
 	}
 
 	if err := db.QueryRow(query, id).Scan(&image.Prompt, &image.URL, &image.Data); err != nil {
-		if err == sql.ErrNoRows {
-			return nil
-		}
-		return nil
+		return nil, err
 	}
 	image.ID = id
-	return image
+	return image, nil
 }
 
-func selectImageIds() []string {
+func selectImageIds() ([]string, error) {
 	query := "SELECT id FROM images ORDER BY timestamp DESC"
 
 	rows, err := db.Query(query)
 	if err != nil {
-		log.Fatal(err)
-		return nil
+		return nil, err
 	}
 	defer rows.Close()
 
@@ -82,14 +75,13 @@ func selectImageIds() []string {
 	for rows.Next() {
 		var id string
 		if err := rows.Scan(&id); err != nil {
-			log.Fatal(err)
-			return nil
+			return nil, err
 		}
 		ids = append(ids, id)
 	}
-	if err = rows.Err(); err != nil {
-		return nil
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
-	return ids
+	return ids, nil
 }

@@ -51,11 +51,13 @@ func GenerateImage(w http.ResponseWriter, r *http.Request) {
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusUnprocessableEntity)
+		return
 	}
 
 	// ERROR: Add validation
 	if errors := req.validate(); len(errors) > 0 {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
 	}
 
 	// TODO: Re-use this
@@ -76,24 +78,34 @@ func GenerateImage(w http.ResponseWriter, r *http.Request) {
 	var ids []string
 	for i := 0; i < req.NumImages; i++ {
 		imageUrl, prompt := GenerateDallEImage(scenePrompt, stylePrompt, req.Size)
-		id := insertImageFromUrl(imageUrl, prompt)
+		id, err := insertImageFromUrl(imageUrl, prompt)
+		if err != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
 		ids = append(ids, id)
 	}
 
 	if err := json.NewEncoder(w).Encode(ids); err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
 	}
 }
 
 func GetImageIds(w http.ResponseWriter, _ *http.Request) {
-	ids := selectImageIds()
+	ids, err := selectImageIds()
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
-	err := json.NewEncoder(w).Encode(ids)
+	err = json.NewEncoder(w).Encode(ids)
 	if err != nil {
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
 	}
 }
 
@@ -101,13 +113,18 @@ func GetImageById(w http.ResponseWriter, r *http.Request) {
 	id := r.PathValue("id")
 	r.ParseForm()
 	_, isHighResolution := r.Form["isHighResolution"]
-	image := selectImageById(id, isHighResolution)
+	image, err := selectImageById(id, isHighResolution)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	if err := json.NewEncoder(w).Encode(image); err != nil {
 		http.Error(w, "Error encoding JSON", http.StatusInternalServerError)
+		return
 	}
 }
 
