@@ -22,10 +22,16 @@ type ImageGenerationRequest struct {
 	NumImages  int    `json:"numImages"`
 }
 
-func (req ImageGenerationRequest) validate() map[string]string {
-	var errors map[string]string
+func (req ImageGenerationRequest) validate() bool {
+	if req.Style == "" {
+		return false
+	}
 
-	return errors
+	if req.Scene == "" {
+		return false
+	}
+
+	return true
 }
 
 type Image struct {
@@ -55,7 +61,7 @@ func GenerateImage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ERROR: Add validation
-	if errors := req.validate(); len(errors) > 0 {
+	if ok := req.validate(); !ok {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
 		return
 	}
