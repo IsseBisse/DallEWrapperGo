@@ -62,22 +62,36 @@ func GenerateImage(w http.ResponseWriter, r *http.Request) {
 
 	// TODO: Re-use this
 	var stylePrompt string
+	var err error
 	if req.StyleIsURL {
-		stylePrompt = PromptFromURL(req.Style, true)
+		stylePrompt, err = PromptFromURL(req.Style, true)
+		if err != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
 	} else {
 		stylePrompt = req.Style
 	}
 
 	var scenePrompt string
 	if req.SceneIsURL {
-		scenePrompt = PromptFromURL(req.Scene, false)
+		scenePrompt, err = PromptFromURL(req.Scene, false)
+		if err != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
 	} else {
 		scenePrompt = req.Scene
 	}
 
 	var ids []string
 	for i := 0; i < req.NumImages; i++ {
-		imageUrl, prompt := GenerateDallEImage(scenePrompt, stylePrompt, req.Size)
+		imageUrl, prompt, err := GenerateDallEImage(scenePrompt, stylePrompt, req.Size)
+		if err != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+
 		id, err := insertImageFromUrl(imageUrl, prompt)
 		if err != nil {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
