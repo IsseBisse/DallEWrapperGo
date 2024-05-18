@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -54,7 +55,9 @@ type ImageGenerationResults struct {
 	Error error
 }
 
-func generateImageTask(scenePrompt string, stylePrompt string, size string, res chan<- ImageGenerationResults) {
+func generateImageTask(scenePrompt string, stylePrompt string, size string, res chan<- ImageGenerationResults, wg *sync.WaitGroup) {
+	defer wg.Done()
+
 	imageUrl, prompt, err := GenerateDallEImage(scenePrompt, stylePrompt, size)
 	if err != nil {
 		res <- ImageGenerationResults{"", err}
@@ -111,21 +114,30 @@ func GenerateImage(w http.ResponseWriter, r *http.Request) {
 		scenePrompt = req.Scene
 	}
 
-	chanRes := make(chan ImageGenerationResults, 1)
+	wg := new(sync.WaitGroup)
+	wg.Add(req.NumImages)
+	chanRes := make(chan ImageGenerationResults, req.NumImages)
 	for i := 0; i < req.NumImages; i++ {
-		go generateImageTask(scenePrompt, stylePrompt, req.Size, chanRes)
+		go generateImageTask(scenePrompt, stylePrompt, req.Size, chanRes, wg)
 	}
-	res := <-chanRes
-	fmt.Println(res)
+	wg.Wait()
 
-	// TODO: Test this, add error handling and return value
+	var ids []string
+	for i := 0; i < req.NumImages; i++ {
+		res := <-chanRes
 
-	// http.Error(w, "Internal server error", http.StatusInternalServerError)
+		if res.Error != nil {
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
 
-	// if err := json.NewEncoder(w).Encode(ids); err != nil {
-	// 	http.Error(w, "Internal server error", http.StatusInternalServerError)
-	// 	return
-	// }
+		ids = append(ids, res.Id)
+	}
+
+	if err := json.NewEncoder(w).Encode(ids); err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 }
 
 func GetImageIds(w http.ResponseWriter, _ *http.Request) {
@@ -179,8 +191,8 @@ func Logging(next http.Handler) http.Handler {
 func main() {
 	log.SetOutput(os.Stdout)
 
-	// connStr := "postgresql://myuser:mypassword@0.0.0.0/mydb?sslmode=disable"
-	connStr := "postgresql://myuser:mypassword@db/mydb?sslmode=disable"
+	connStr := "postgresql://myuser:mypassword@0.0.0.0/mydb?sslmode=disable"
+	// connStr := "postgresql://myuser:mypassword@db/mydb?sslmode=disable"
 	// Connect to database
 	var err error
 	if db, err = sql.Open("postgres", connStr); err != nil {
@@ -196,7 +208,7 @@ func main() {
 	router.HandleFunc("OPTIONS /images", GenerateImageOptions)
 
 	server := http.Server{
-		Addr:    ":8090",
+		Addr:    ":8091",
 		Handler: Logging(router),
 	}
 
