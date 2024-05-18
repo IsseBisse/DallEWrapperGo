@@ -191,8 +191,8 @@ func Logging(next http.Handler) http.Handler {
 func main() {
 	log.SetOutput(os.Stdout)
 
-	connStr := "postgresql://myuser:mypassword@0.0.0.0/mydb?sslmode=disable"
-	// connStr := "postgresql://myuser:mypassword@db/mydb?sslmode=disable"
+	// connStr := "postgresql://myuser:mypassword@0.0.0.0/mydb?sslmode=disable"
+	connStr := "postgresql://myuser:mypassword@db/mydb?sslmode=disable"
 	// Connect to database
 	var err error
 	if db, err = sql.Open("postgres", connStr); err != nil {
@@ -208,7 +208,7 @@ func main() {
 	router.HandleFunc("OPTIONS /images", GenerateImageOptions)
 
 	server := http.Server{
-		Addr:    ":8091",
+		Addr:    ":8090",
 		Handler: Logging(router),
 	}
 
