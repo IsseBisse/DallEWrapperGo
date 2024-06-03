@@ -44,12 +44,6 @@ type Image struct {
 
 var db *sql.DB
 
-func GenerateImageOptions(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Methods", "POST")
-	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept")
-}
-
 type ImageGenerationResults struct {
 	Id    string
 	Error error
@@ -77,7 +71,6 @@ func GenerateImage(w http.ResponseWriter, r *http.Request) {
 	var req ImageGenerationRequest
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusUnprocessableEntity)
@@ -148,7 +141,6 @@ func GetImageIds(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	err = json.NewEncoder(w).Encode(ids)
 	if err != nil {
@@ -168,7 +160,6 @@ func GetImageById(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	if err := json.NewEncoder(w).Encode(image); err != nil {
 		http.Error(w, "Error encoding JSON", http.StatusInternalServerError)
@@ -180,12 +171,33 @@ func HealthCheck(w http.ResponseWriter, _ *http.Request) {
 	fmt.Fprintf(w, "ok\n")
 }
 
-func Logging(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+type Middleware func(http.Handler) http.HandlerFunc
+
+func MiddlewareChain(middlewares ...Middleware) Middleware {
+	return func(next http.Handler) http.HandlerFunc {
+		for i := len(middlewares) - 1; i >= 0; i-- {
+			next = middlewares[i](next)
+		}
+
+		return next.ServeHTTP
+	}
+}
+
+func LoggingMiddleware(next http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		next.ServeHTTP(w, r)
 		fmt.Println(r.Method, r.URL.Path, time.Since(start))
-	})
+	}
+}
+
+func CORSMiddleware(next http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept")
+		next.ServeHTTP(w, r)
+	}
 }
 
 func main() {
@@ -205,11 +217,15 @@ func main() {
 	router.HandleFunc("GET /images", GetImageIds)
 	router.HandleFunc("GET /images/{id}", GetImageById)
 	router.HandleFunc("POST /images", GenerateImage)
-	router.HandleFunc("OPTIONS /images", GenerateImageOptions)
+
+	middlewareChain := MiddlewareChain(
+		LoggingMiddleware,
+		CORSMiddleware,
+	)
 
 	server := http.Server{
 		Addr:    ":8090",
-		Handler: Logging(router),
+		Handler: middlewareChain(router),
 	}
 
 	server.ListenAndServe()
