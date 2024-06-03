@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	_ "github.com/lib/pq"
@@ -47,6 +48,29 @@ func GenerateImageOptions(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "POST")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept")
+}
+
+type ImageGenerationResults struct {
+	Id    string
+	Error error
+}
+
+func generateImageTask(scenePrompt string, stylePrompt string, size string, res chan<- ImageGenerationResults, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	imageUrl, prompt, err := GenerateDallEImage(scenePrompt, stylePrompt, size)
+	if err != nil {
+		res <- ImageGenerationResults{"", err}
+		return
+	}
+
+	id, err := insertImageFromUrl(imageUrl, prompt)
+	if err != nil {
+		res <- ImageGenerationResults{"", err}
+		return
+	}
+
+	res <- ImageGenerationResults{id, nil}
 }
 
 func GenerateImage(w http.ResponseWriter, r *http.Request) {
@@ -90,20 +114,24 @@ func GenerateImage(w http.ResponseWriter, r *http.Request) {
 		scenePrompt = req.Scene
 	}
 
+	wg := new(sync.WaitGroup)
+	wg.Add(req.NumImages)
+	chanRes := make(chan ImageGenerationResults, req.NumImages)
+	for i := 0; i < req.NumImages; i++ {
+		go generateImageTask(scenePrompt, stylePrompt, req.Size, chanRes, wg)
+	}
+	wg.Wait()
+
 	var ids []string
 	for i := 0; i < req.NumImages; i++ {
-		imageUrl, prompt, err := GenerateDallEImage(scenePrompt, stylePrompt, req.Size)
-		if err != nil {
+		res := <-chanRes
+
+		if res.Error != nil {
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
 
-		id, err := insertImageFromUrl(imageUrl, prompt)
-		if err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-		ids = append(ids, id)
+		ids = append(ids, res.Id)
 	}
 
 	if err := json.NewEncoder(w).Encode(ids); err != nil {

@@ -103,7 +103,7 @@ func PromptFromURL(url string, isStyle bool) (string, error) {
 	defer response.Body.Close()
 
 	var chatResponse ChatResponse
-	responseBody, _ := io.ReadAll(response.Body)
+	responseBody, err := io.ReadAll(response.Body)
 	json.Unmarshal(responseBody, &chatResponse)
 	if err != nil {
 		log.Printf("Something went wrong!")
@@ -121,7 +121,8 @@ func GenerateDallEImage(scene string, style string, size string) (string, string
 
 	req, _ := http.NewRequest("POST", "https://api.openai.com/v1/images/generations", bytes.NewReader(requestBodyMarshalled))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("OPENAI_API_KEY")))
+	apiKey := os.Getenv("OPENAI_API_KEY")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", apiKey))
 
 	client := http.Client{Timeout: 100 * time.Second}
 	response, err := client.Do(req)
@@ -131,7 +132,7 @@ func GenerateDallEImage(scene string, style string, size string) (string, string
 	defer response.Body.Close()
 
 	var dalleResponse DallEResponse
-	responseBody, _ := io.ReadAll(response.Body)
+	responseBody, err := io.ReadAll(response.Body)
 	json.Unmarshal(responseBody, &dalleResponse)
 	if err != nil {
 		return "", "", err
