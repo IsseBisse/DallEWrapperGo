@@ -67,6 +67,10 @@ func generateImageTask(scenePrompt string, stylePrompt string, size string, res 
 	res <- ImageGenerationResults{id, nil}
 }
 
+func GenerateImageOptions(w http.ResponseWriter, _ *http.Request) {
+	w.WriteHeader(http.StatusOK)
+}
+
 func GenerateImage(w http.ResponseWriter, r *http.Request) {
 	var req ImageGenerationRequest
 
@@ -194,7 +198,7 @@ func LoggingMiddleware(next http.Handler) http.HandlerFunc {
 func CORSMiddleware(next http.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Accept")
 		next.ServeHTTP(w, r)
 	}
@@ -217,6 +221,7 @@ func main() {
 	router.HandleFunc("GET /images", GetImageIds)
 	router.HandleFunc("GET /images/{id}", GetImageById)
 	router.HandleFunc("POST /images", GenerateImage)
+	router.HandleFunc("OPTIONS /images", GenerateImageOptions)
 
 	middlewareChain := MiddlewareChain(
 		LoggingMiddleware,
