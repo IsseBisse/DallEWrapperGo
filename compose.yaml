@@ -23,3 +23,5 @@ services:
       target: builder
     ports:
       - 8090:8090
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY}

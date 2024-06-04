@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -130,6 +131,11 @@ func GenerateDallEImage(scene string, style string, size string) (string, string
 		return "", "", err
 	}
 	defer response.Body.Close()
+
+	if response.StatusCode != 200 {
+		log.Fatalf("OpenAI call returned status code %d", response.StatusCode)
+		return "", "", errors.New("OpenAI call failed")
+	}
 
 	var dalleResponse DallEResponse
 	responseBody, err := io.ReadAll(response.Body)
