@@ -71,7 +71,7 @@ function App() {
                 "numImages": numImages
             })
         })
-        // TODO: This seems to trigger a site refresh sometimes, but no always. Investigate
+        
         const newIds = await response.json();
         setImageIds(newIds.concat(imageIds))
         setIsLoading(false)
